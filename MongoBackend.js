@@ -117,7 +117,3 @@ app.post('/getIncome', (req, res) => getIncome(req, res))
 app.post('/editIncome', (req, res) => editIncome(req, res))
 app.post('/deleteIncome', (req, res) => deleteIncome(req, res))
 app.post('/changeCurrency', (req, res) => changeCurrency(req, res))
-
-
-
-
