@@ -111,6 +111,7 @@ const deleteIncome = async (req, res) => {
     }
 }
 
+app.get('/', (req, res) => console.log('server is up'));
 app.post('/getUser', (req, res) => getUser(req, res))
 app.post('/addIncome', (req, res) => addIncome(req, res))
 app.post('/getIncome', (req, res) => getIncome(req, res))
