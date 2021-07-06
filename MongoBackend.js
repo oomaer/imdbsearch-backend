@@ -2,54 +2,43 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 const cors = require('cors');
-const mongoose = require('mongoose');
-
+const {MongoClient} = require('mongodb');
+const ObjectID = require('mongodb').ObjectID;
 
 app.use(cors());
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
-const database_name = 'Budget'
+const database_name = 'imdb'
 const MongoURL = `mongodb+srv://mongotest:Ac850wzNqM8j5qoj@cluster0.ci7lf.mongodb.net/${database_name}?retryWrites=true&w=majority`
-const User = require(`./models/users`);
-const Income = require(`./models/income`);
-
-mongoose.connect(MongoURL, { useNewUrlParser: true, useUnifiedTopology:true, useCreateIndex:true})
-    .then(result => {
-        app.listen(process.env.PORT || 5000);
-        console.log('server running');
-    })
-    .catch((err => console.log(err)));
-   
 
 
-const addIncome = async (req, res) => {
-    const data = req.body;
-    try{
-        const income = new Income({
-            amount: data.income,
-            frequency: data.frequency,
-            user_email: data.email
-        })
 
-        const result = await income.save()
-        res.status(200).send(result._id);
 
-    }catch(err){
-        console.log(err);
-    }
-}
+
+let db;
+MongoClient.connect(MongoURL, { useUnifiedTopology: true })
+  .then(client => {
+    const port = process.env.PORT || 5000;
+    app.listen(port);
+    console.log('Server running on ' + port)
+    db = client.db(database_name);
+
+  })
+  .catch(err => console.log(err))
 
 
 const getUser = async (req, res) => {
     try{
-        const result = await User.find({email: req.body.email})
-        res.status(200).json({
+        const result = await db.find({email: req.body.email})
+        res.status(200).json(
+            {
             email: result[0].email,
             name: result[0].name,
             currency: result[0].currency,
             imagelink: result[0].imagelink
-        })
+            }
+        )
 
     }
     catch(err){
@@ -58,29 +47,58 @@ const getUser = async (req, res) => {
     }
 }
 
-const changeCurrency = async (req, res) => {
-    try{
-        const data = req.body;
-        let result = await User.updateOne({email : data.email}, {
-                $set : {currency: data.changed_curr[0]}
-        })
 
-        let rate_change = data.changed_curr[1] / data.prev_curr[1];
 
-        result = await Income.updateMany({user_email: data.email}, {$mul: {amount: rate_change}})
+const getSearchResults = async (req, res) => {
 
-        res.status(200).json(result);
+    let {type, text, sort} = req.body;
+    const projection = {title: 1, year: 1, runtime: 1, plot: 1, type: 1, directors: 1, imdb: 1, countries: 1, genres: 1, poster: 1};
+    let match;
+    let sortType;
+
+    switch(type){
+        case 'Title':
+            match = {title: text}
+            break;
+        case 'Actor':
+            match = {cast: text}
+            break;
+        case 'Director':
+            match = {directors: text}
+            break;
+        case 'Genre':
+            match = {genres: text}
+            break;
 
     }
-    catch(err){
-        console.log(err);
+    switch(sort){
+        case 'None':
+            sortType = {}
+            break;
+        case 'Rating':
+            sortType = {"imdb.rating": -1}
+            break;
+        case 'Award Wins':
+            sortType = {"awards.wins": -1}
+            break;
+        case 'Year':
+            sortType = {"year": -1}
+            break;
+        case 'Runtime':
+            sortType = {"runtime": -1}
+            break;
+        case 'Votes':
+            sortType = {"imdb.votes": -1}
+            break;
     }
 
-}
-
-const getIncome = async (req, res) => {
     try{
-        result = await Income.find({user_email: req.body.email}, {_id: 1, amount: 1, frequency: 1});
+        //collation helps to perform case sensitive search
+        //to array returns an array documents
+        result = await db.collection('movies').find(match, {projection: projection}).sort(sortType).collation(
+            {locale: 'en', strength: 1 }
+          ).toArray();
+    
         res.status(200).json(result);
 
     }catch(err){
@@ -89,32 +107,25 @@ const getIncome = async (req, res) => {
     }  
 }
 
-const editIncome = async (req, res) => {
+const getComments = async (req, res) => {
+    let {movie_id} = req.body;
+    let movieObjectID = new ObjectID(movie_id);
+
     try{
-        let result = await Income.updateOne({_id: req.body.id}, {$set : {amount: req.body.amount}});
+
+        result = await db.collection('comments').find({movie_id: movieObjectID}).collation(
+            {locale: 'en', strength: 1 }
+          ).toArray();
+    
         res.status(200).json(result);
 
     }catch(err){
-        res.status(400).json(err.message);
         console.log(err);
-    }
+        res.status(400).json(err.message);
+    }  
 }
 
-const deleteIncome = async (req, res) => {
-    try{
-        let result = await Income.deleteOne({_id: req.body.id});
-        res.status(200).json(result);
+app.post('/search', (req, res) => getSearchResults(req, res))
+app.post('/getComments', (req, res) => getComments(req, res))
 
-    }catch(err){
-        res.status(400).json(err.message);
-        console.log(err);
-    }
-}
-
-app.get('/', (req, res) => console.log('server is up'));
-app.post('/getUser', (req, res) => getUser(req, res))
-app.post('/addIncome', (req, res) => addIncome(req, res))
-app.post('/getIncome', (req, res) => getIncome(req, res))
-app.post('/editIncome', (req, res) => editIncome(req, res))
-app.post('/deleteIncome', (req, res) => deleteIncome(req, res))
-app.post('/changeCurrency', (req, res) => changeCurrency(req, res))
+            
