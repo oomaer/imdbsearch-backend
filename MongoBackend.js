@@ -10,7 +10,7 @@ app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
 const database_name = 'imdb'
-const MongoURL = `mongodb+srv://mongotest:Ac850wzNqM8j5qoj@cluster0.ci7lf.mongodb.net/${database_name}?retryWrites=true&w=majority`
+const MongoURL = `mongo_url_here` // can will get this from mongo atlas
 
 
 
